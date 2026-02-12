@@ -136,6 +136,20 @@ class HealthResponse(BaseModel):
     status: str = Field(..., description="Health status")
 
 
+class OrderBookOrder(BaseModel):
+    """Order details in the order book."""
+    order_id: int
+    price: int
+    amount: int
+
+
+class OrderBookResponse(BaseModel):
+    """Response model for order book view."""
+    symbol: str
+    buy_orders: list[OrderBookOrder]
+    sell_orders: list[OrderBookOrder]
+
+
 @app.post(
     "/orders",
     response_model=OrderResponse,
@@ -242,6 +256,43 @@ def place_trade(
             )
             for fill in trade.order_fills
         ],
+    )
+
+
+@app.get(
+    "/orderbook/{symbol}",
+    response_model=OrderBookResponse,
+    summary="View order book",
+)
+def get_order_book(
+    symbol: str,
+    order_management: OrderManagementDep,
+) -> OrderBookResponse:
+    """View all orders in the order book for a symbol."""
+    # Access the internal order book
+    order_book = order_management._order_books.get(symbol)
+    
+    if order_book is None:
+        return OrderBookResponse(
+            symbol=symbol,
+            buy_orders=[],
+            sell_orders=[],
+        )
+    
+    buy_orders = [
+        OrderBookOrder(order_id=o.order_id, price=o.price, amount=o.amount)
+        for o in order_book.get_orders(Side.BUY)
+    ]
+    
+    sell_orders = [
+        OrderBookOrder(order_id=o.order_id, price=o.price, amount=o.amount)
+        for o in order_book.get_orders(Side.SELL)
+    ]
+    
+    return OrderBookResponse(
+        symbol=symbol,
+        buy_orders=buy_orders,
+        sell_orders=sell_orders,
     )
 
 
